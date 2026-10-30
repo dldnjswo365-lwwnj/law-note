@@ -555,6 +555,12 @@ body.selecting{cursor:crosshair}
 /* 과목 화면 법령 목록: 다른 과목에도 있는 법령은 이름 뒤에 그 과목들을 굵은 작은 글씨로 표시(지금 보는 과목은 당연히 포함이라 뺌) */
 .subjs{font-weight:700;font-size:13px;color:var(--tx2);word-break:keep-all}
 
+/* 카드 이동 화살표: 1.5배(폭 52→78px, 높이 +, 아이콘 크게) */
+.cfoot{align-items:center}
+.cfoot .btn.arrow{flex:none;width:78px;height:66px;padding:0}
+.cfoot .btn.arrow svg{width:33px;height:33px}
+.cfoot .btn.good,.cfoot .btn.bad{background:transparent}
+
 </style>
 </head>
 <body>
@@ -806,12 +812,16 @@ function buildQueue(filter) {
   const q = [];
   allArtIds().forEach(aid => {
     if (filter && !filter(aid)) return;
+    // 같은 항(① ② … 과 그 아래 호·목)의 틀린 빈칸은 복습 카드 한 장으로 합친다
+    const gs = []; let cur = null;
+    ARTS[aid].a.lines.forEach((ln, i) => { if (ln.deleted) return; if (!cur || ln.lvl === 0) { cur = { idxs: [i] }; gs.push(cur); } else cur.idxs.push(i); });
+    const gOf = {}; gs.forEach((g, k) => g.idxs.forEach(i => { gOf[i] = k; }));
     const by = {};
     units(aid).forEach(u => u.blanks.forEach(b => {
       const r = S.rec[b.bid];
-      if (r && r.last === 'w') (by[u.li] = by[u.li] || []).push(b.bid);
+      if (r && r.last === 'w') (by[gOf[u.li]] = by[gOf[u.li]] || []).push(b.bid);
     }));
-    Object.keys(by).forEach(li => q.push({ aid, li: +li, targets: by[li] }));
+    Object.keys(by).forEach(k => q.push({ aid, li: gs[k].idxs[0], idxs: gs[k].idxs, targets: by[k] }));
   });
   return q;
 }
@@ -848,7 +858,7 @@ function applyTheme() {
 }
 
 /* ===== 화면 렌더링 ===== */
-let SLIDE = null, EDIT = false, ETOOL = 'blank', RV = null, CARD = { aid: null, i: 0 }, EX = { kind: '전체', art: null }, LSORT = 'art', ROUTEKEY = '';
+let SLIDE = null, EDIT = false, ETOOL = 'blank', RV = null, CARD = { aid: null, i: 0, right: 0, wrong: [], only: null }, EX = { kind: '전체', art: null }, LSORT = 'art', ROUTEKEY = '';
 const fmtDate = d => { const p = (d || '').split('-'); return p.length === 3 ? `${p[0]}.${+p[1]}.${+p[2]}` : d; };
 const readHref = (aid, ct, cid) => `#/read/${aid}/${ct || 'law'}/${cid || ARTS[aid].lid}`;
 const barHTML = (x, cls) => `<div class="bar ${cls || ''}"><i style="width:${Math.round((x || 0) * 100)}%${x > 0 ? ';min-width:3px' : ''}"></i></div>`;
@@ -1172,21 +1182,21 @@ function vRead(aid, ct, cid) {
 function cardBody(aid, list, ct, cid) {
   const gs = groupsOf(aid).filter(g => groupBlanks(aid, g, isActive).length > 0);
   if (!gs.length) return `<div class="card empty" style="margin-top:12px">현재 켜진 빈칸 유형에 해당하는 빈칸이 이 조문에는 없어요.<br>위 칩에서 다른 유형을 켜 보세요.</div>`;
-  if (CARD.aid !== aid) { CARD = { aid, i: S.last && S.last.aid === aid && S.last.card ? S.last.card : 0 }; }
-  const n = gs.length;
+  if (CARD.aid !== aid) { CARD = { aid, i: S.last && S.last.aid === aid && S.last.card ? S.last.card : 0, right: 0, wrong: [], only: null }; }
+  const n = CARD.only ? CARD.only.length : gs.length;      // 다시 풀기 라운드에서는 틀린 카드만
   CARD.i = Math.max(0, Math.min(n, CARD.i));
   if (CARD.i >= n) {
-    const c = Object.values(SJ).filter(v => v === 'c').length, w = Object.values(SJ).filter(v => v === 'w').length;
+    const c = CARD.right, w = CARD.wrong.length;
     const next = list[list.indexOf(aid) + 1];
-    return `<div class="cardmode"><div class="cc" style="display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;text-align:center"><h3 style="font-size:20px">이 조문 카드를 모두 봤어요</h3><div class="muted">알았음 ${c} · 몰랐음 ${w}</div><div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;justify-content:center"><button class="btn" data-act="cardjump" data-i="0">처음부터 다시</button>${next ? `<button class="btn pri" data-act="go" data-to="${readHref(next, ct, cid)}">다음 조문 ${esc(ARTS[next].a.no)}</button>` : ''}</div></div></div>`;
+    return `<div class="cardmode"><div class="cc" style="display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;text-align:center"><h3 style="font-size:20px">이 조문 카드를 모두 봤어요</h3><div class="muted"><b style="color:var(--good)">맞음 ${c}</b> · <b style="color:var(--bad)">틀림 ${w}</b>${w ? '<br>틀린 카드만 모아 다시 풀 수 있어요.' : ''}</div><div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;justify-content:center">${w ? `<button class="btn pri" data-act="cretry">틀린 ${w}개 다시 풀기</button>` : ''}<button class="btn" data-act="cardjump" data-i="0">처음부터 다시</button>${next ? `<button class="btn pri" data-act="go" data-to="${readHref(next, ct, cid)}">다음 조문 ${esc(ARTS[next].a.no)}</button>` : ''}</div></div></div>`;
   }
   S.last.card = CARD.i; save();
-  const g = gs[CARD.i];
+  const g = gs[CARD.only ? CARD.only[CARD.i] : CARD.i];
   const o = { edit: false, hide: isActive };
   const ids = groupBlanks(aid, g, isActive).map(b => b.bid), allOpen = ids.every(i => REV.has(i));
   const lines = g.idxs.map(li => lineHTML(aid, li, o)).join('');
   return `<div class="cardmode"><div class="prog"><i style="width:${Math.round(CARD.i / n * 100)}%"></i></div><div class="cc"><div class="ch"><span>카드 ${CARD.i + 1} / ${n}</span><span>빈칸 ${ids.length}개</span></div><div class="law">${lines}</div></div>
-  <div class="cfoot"><button class="btn" style="flex:none;width:52px;padding:0" data-act="cprev" ${CARD.i === 0 ? 'disabled' : ''} aria-label="이전">${ic('left')}</button>${allOpen ? `<button class="btn pri" data-act="cok">${ic('check')}다 알았음 · 다음</button>` : `<button class="btn pri" data-act="creveal">${ic('eye')}정답 보기</button>`}<button class="btn" style="flex:none;width:52px;padding:0" data-act="cnext" aria-label="건너뛰기">${ic('right')}</button></div></div>`;
+  <div class="cfoot"><button class="btn arrow" data-act="cprev" ${CARD.i === 0 ? 'disabled' : ''} aria-label="이전">${ic('left')}</button>${allOpen ? `<button class="btn good" data-act="cright">${ic('check')}맞음</button><button class="btn bad" data-act="cwrong">✕ 틀림</button>` : `<button class="btn pri" data-act="creveal">${ic('eye')}정답 보기</button>`}<button class="btn arrow" data-act="cnext" aria-label="건너뛰기">${ic('right')}</button></div></div>`;
 }
 
 /* ----- 복습 ----- */
@@ -1237,13 +1247,11 @@ function vReviewRun(st, sid) {
     return `<div class="wrap"><div class="card" style="margin-top:14px;text-align:center;padding:30px 20px;display:flex;flex-direction:column;gap:10px;align-items:center"><h3 style="font-size:20px">복습 라운드 끝</h3><div class="muted" style="line-height:1.7">${esc(sc.label)} · ${RV.round > 1 ? `${RV.round}번째 라운드 · ` : ''}${RV.q.length}개를 봤어요.<br><b style="color:var(--good)">맞음 ${RV.right}</b> · <b style="color:var(--bad)">틀림 ${RV.wrongItems.length}</b>${RV.wrongItems.length ? '<br>틀린 것만 모아 다시 풀 수 있어요.' : ''}<br>${left ? `복습 대기 중인 빈칸은 ${left}개예요.` : '남은 빈칸이 없어요. 모두 맞혔어요.'}</div><div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;justify-content:center">${RV.wrongItems.length ? `<button class="btn pri" data-act="rvretry">틀린 ${RV.wrongItems.length}개 다시 풀기</button>` : ''}<button class="btn ${RV.wrongItems.length ? '' : 'pri'}" data-act="rvagain" ${left ? '' : 'disabled'}>${RV.wrongItems.length ? '남은 것 모두 다시' : '남은 것 다시 풀기'}</button><button class="btn" data-act="go" data-to="#/review">복습 목록으로</button></div></div></div>`;
   }
   const it = RV.q[RV.i], A = ARTS[it.aid], lines = A.a.lines;
-  const ctxs = []; let lv = lines[it.li].lvl;
-  for (let k = it.li - 1; k >= 0 && lv > 0; k--) if (!lines[k].deleted && lines[k].lvl < lv) { ctxs.unshift(k); lv = lines[k].lvl; }
   const o = { edit: false, hide: b => it.targets.includes(b.bid) };
-  const ctx = ctxs.map(k => `<div class="ctx" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(lines[k].label)} ${esc(lines[k].text)}</div>`).join('');
+  const body = it.idxs.map(i => lineHTML(it.aid, i, o)).join('');      // 항 전체(틀린 빈칸만 가려서)
   const allOpen = it.targets.every(i => REV.has(i));
-  return `<div class="wrap"><div class="cardmode"><div class="prog"><i style="width:${Math.round(RV.i / RV.q.length * 100)}%"></i></div><div class="cc"><div class="ch"><span>${RV.i + 1} / ${RV.q.length}</span><button class="badge" data-act="go" data-to="${readHref(it.aid)}">${esc(A.a.no)} ${esc(A.a.title)} ↗</button></div>${ctx}<div class="law">${lineHTML(it.aid, it.li, o)}</div></div>
-  <div class="cfoot">${allOpen ? `<button class="btn good" data-act="rvright">${ic('check')}맞음</button><button class="btn bad" data-act="rvwrong">✕ 틀림</button>` : `<button class="btn pri" data-act="rvreveal">${ic('eye')}정답 보기</button>`}<button class="btn" style="flex:none;width:52px;padding:0" data-act="rvskip" aria-label="건너뛰기">${ic('right')}</button></div></div></div>`;
+  return `<div class="wrap"><div class="cardmode"><div class="prog"><i style="width:${Math.round(RV.i / RV.q.length * 100)}%"></i></div><div class="cc"><div class="ch"><span>${RV.i + 1} / ${RV.q.length}</span><button class="badge" data-act="go" data-to="${readHref(it.aid)}">${esc(A.a.no)} ${esc(A.a.title)} ↗</button></div><div class="law">${body}</div></div>
+  <div class="cfoot">${allOpen ? `<button class="btn good" data-act="rvright">${ic('check')}맞음</button><button class="btn bad" data-act="rvwrong">✕ 틀림</button>` : `<button class="btn pri" data-act="rvreveal">${ic('eye')}정답 보기</button>`}<button class="btn arrow" data-act="rvskip" aria-label="건너뛰기">${ic('right')}</button></div></div></div>`;
 }
 
 /* ----- 통계 ----- */
@@ -1275,7 +1283,7 @@ function parseRoute() { const h = location.hash.replace(/^#\/?/, ''); return h ?
 function render() {
   const r = parseRoute(), key = location.hash, changed = key !== ROUTEKEY;
   ROUTEKEY = key;
-  if (changed) { REV = new Set(); SJ = {}; EDIT = false; closePop(); if (r[0] === 'review') RV = null; if (r[0] !== 'read') CARD = { aid: null, i: 0 }; }
+  if (changed) { REV = new Set(); SJ = {}; EDIT = false; closePop(); if (r[0] === 'review') RV = null; if (r[0] !== 'read') CARD = { aid: null, i: 0, right: 0, wrong: [], only: null }; }
   const y = window.scrollY;
   let html, nav = 'home';
   switch (r[0]) {
@@ -1925,7 +1933,7 @@ document.addEventListener('keydown', e => {
 
 function cardIds() {
   const r = parseRoute(), aid = r[1];
-  const gs = groupsOf(aid).filter(g => groupBlanks(aid, g, isActive).length > 0), g = gs[CARD.i];
+  const gs = groupsOf(aid).filter(g => groupBlanks(aid, g, isActive).length > 0), g = gs[CARD.only ? CARD.only[CARD.i] : CARD.i];
   return g ? groupBlanks(aid, g, isActive).map(b => b.bid) : [];
 }
 function act(name, a, e) {
@@ -1993,10 +2001,13 @@ function act(name, a, e) {
     }
     /* 카드 모드 */
     case 'creveal': cardIds().forEach(i => REV.add(i)); closePop(); render(); break;
-    case 'cok': cardIds().forEach(i => { if (!SJ[i]) judge(i, true); }); CARD.i++; closePop(); render(); window.scrollTo(0, 0); break;
+    /* 카드 모드: 정답을 본 뒤 맞음 = 알았음 기록, 틀림 = 몰랐음 기록 + 마지막에 틀린 카드만 모아 다시 풀기 */
+    case 'cright': cardIds().forEach(i => judge(i, true)); CARD.right++; CARD.i++; closePop(); render(); window.scrollTo(0, 0); break;
+    case 'cwrong': { const ids = cardIds(); ids.forEach(i => { judge(i, false); REV.delete(i); delete SJ[i]; }); CARD.wrong.push(CARD.only ? CARD.only[CARD.i] : CARD.i); CARD.i++; closePop(); render(); window.scrollTo(0, 0); break; }
+    case 'cretry': CARD.only = CARD.wrong.slice(); CARD.wrong = []; CARD.right = 0; CARD.i = 0; REV = new Set(); closePop(); render(); window.scrollTo(0, 0); break;
     case 'cnext': CARD.i++; closePop(); render(); window.scrollTo(0, 0); break;
     case 'cprev': CARD.i = Math.max(0, CARD.i - 1); closePop(); render(); window.scrollTo(0, 0); break;
-    case 'cardjump': CARD.i = +d.i; render(); window.scrollTo(0, 0); break;
+    case 'cardjump': CARD.i = +d.i; CARD.only = null; CARD.right = 0; CARD.wrong = []; render(); window.scrollTo(0, 0); break;
     /* 복습 */
     case 'rvreveal': RV.q[RV.i].targets.forEach(i => REV.add(i)); closePop(); render(); break;
     /* 정답을 본 뒤: 맞음 = 알았음으로 기록하고 넘어감(복습 목록에서 빠짐), 틀림 = 몰랐음으로 기록해 두었다가 라운드 끝에 틀린 것만 모아 다시 풀기 */

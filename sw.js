@@ -1,8 +1,8 @@
 /* 지적 법령 노트 — 오프라인 저장(서비스 워커)
    - 첫 접속 때 앱 파일을 기기에 저장하고, 이후에는 인터넷 없이도 열린다.
-   - 앱이 새 버전으로 바뀌면(40c18f6a87) 새 파일을 받아 다음 실행부터 적용한다.
+   - 앱이 새 버전으로 바뀌면(5562a24bb4) 새 파일을 받아 다음 실행부터 적용한다.
    - 학습 기록은 localStorage 에 있으므로 이 캐시와 무관하다(캐시가 지워져도 기록은 남는다). */
-const CACHE = 'jeokjeuk-40c18f6a87';
+const CACHE = 'jeokjeuk-5562a24bb4';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png', './icons/icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
