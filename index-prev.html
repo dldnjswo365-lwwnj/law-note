@@ -587,6 +587,16 @@ details.ans .ca{margin-top:8px}
 
 .cbsetup .f{display:flex;flex-direction:column;gap:7px;margin:0 0 16px}
 .cbsetup .f>label{font-size:13px;font-weight:650;color:var(--tx2)}
+.cbsubj{align-self:stretch;margin-bottom:14px;width:100%}
+.cbsubj button{flex:1}
+.cblog{display:flex;align-items:stretch;gap:4px}
+.cblog .row{flex:1}
+.cbdel{flex:none;width:44px;color:var(--tx3)}
+.cbdots{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin-top:12px}
+.cbdots i{width:14px;height:14px;border-radius:50%;background:#4f9d6b}
+.cbdots i.no{background:#c25b5b}
+details.cbres.ok{border-left:5px solid #4f9d6b;background:rgba(79,157,107,.07)}
+details.cbres.no{border-left:5px solid #c25b5b;background:rgba(194,91,91,.07)}
 .cbtime{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ac);background:var(--acbg);border-radius:10px;padding:6px 11px;font-size:15px;margin-right:4px}
 .cbgrid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .cbg{min-width:34px;height:34px;border-radius:9px;background:var(--card);border:1px solid var(--bd);font-size:13px;font-weight:650;color:var(--tx3)}
@@ -1092,6 +1102,8 @@ function vHome() {
   return `<div class="wrap home"><div class="home2"><div class="hl">
   <div class="logo"><img class="appicon lg" src="data:image/png;base64,${PACK.icon}" alt=""><div><h1>${esc(appName())}</h1><p>지적직 · LX 법령 빈칸 학습</p></div></div>
   <div style="margin-top:14px">${hero}</div>
+  <div class="sec"><h2>기출</h2></div>
+  <button class="card tap cmpcard" data-act="go" data-to="#/exam"><i class="cmpic">${ic('cbt')}</i><div><h3>기출 시험</h3><div class="small muted" style="margin-top:4px;line-height:1.6">${(cb().log[0] ? `최근 ${cb().log[0].score}/${cb().log[0].n} · ${cbFmt(cb().log[0].sec)} · 연도와 문항 수를 골라 CBT처럼 풀어 봐요.` : '연도와 문항 수를 골라 CBT처럼 풀어 보고, 푼 기록을 다시 확인해요.')}</div></div>${ic('right')}</button>
   <div class="sec"><h2>과목</h2></div><div class="grid2 stack">${sbj}</div>
   <div class="sec"><h2>비교</h2></div>
   <button class="card tap cmpcard" data-act="go" data-to="#/compare"><i class="cmpic">${ic('table')}</i><div><h3>핵심 비교표 · 용어 모아보기</h3><div class="small muted" style="margin-top:4px;line-height:1.6">헷갈리는 기준을 법령 원문 그대로 표로 비교하고, 용어별로 모든 법령의 문장을 모아 봐요.</div></div>${ic('right')}</button>
@@ -1377,7 +1389,7 @@ function render() {
     // #/compare = 핵심 비교표(기본) · #/compare/<표id> · #/compare/terms = 용어 모아보기 · (예전 주소 #/compare/tables[/표id] 도 계속 동작)
     case 'compare': nav = 'compare'; html = r[1] === 'terms' ? vCompare() : vTables(r[1] === 'tables' ? r[2] : r[1]); break;
     case 'review': nav = 'review'; html = r[1] === 'run' ? vReviewRun(r[2] || 'all', r[3]) : vReviewHome(); break;
-    case 'exam': nav = 'exam'; html = vCbt(r[1]); break;
+    case 'exam': nav = 'exam'; html = vCbt(r[1], r[2]); break;
     case 'stats': nav = 'stats'; html = vStats(); break;
     default: html = vHome();
   }
@@ -1559,14 +1571,19 @@ function vTables(id) {
 /* ===== 기출 CBT ===== */
 let CBT_TM = null;
 const CB_NUM = '①②③④';
+const CB_SUBJ = [['survey', '지적측량'], ['statute', '지적법규'], ['relate', '관계법규']];
+const exSid = e => e.sid || 'survey';
 function cb() {
-  if (!S.cbt) S.cbt = { setup: { years: [], n: 20, order: 'rand', wrong: false }, run: null, log: [], wrong: {} };
+  if (!S.cbt) S.cbt = { setup: { sid: 'survey', years: [], n: 20, order: 'rand', wrong: false }, run: null, log: [], wrong: {} };
+  if (!S.cbt.setup.sid) S.cbt.setup.sid = 'survey';
   return S.cbt;
 }
 const cbAns = e => CB_NUM.indexOf(e.ans) + 1;
 const cbFmt = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
 const cbElapsed = r => r.done ? r.el : (Date.now() - r.t0) / 1000;
 const cbEx = id => BEX.find(e => e.id === id);
+const cbSName = sid => (CB_SUBJ.find(x => x[0] === sid) || [0, ''])[1];
+const cbDate = t => { const d = new Date(t); return `${d.getMonth() + 1}.${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 function cbTick() {
   const r = parseRoute();
   if (r[0] !== 'exam' || r[1] !== 'run') return;
@@ -1575,7 +1592,7 @@ function cbTick() {
 }
 function cbPool() {
   const c = cb().setup;
-  let p = BEX.filter(e => e.ans);
+  let p = BEX.filter(e => e.ans && exSid(e) === c.sid);
   if (c.years.length) p = p.filter(e => c.years.includes(e.year));
   if (c.wrong) p = p.filter(e => cb().wrong[e.id]);
   return p;
@@ -1587,54 +1604,57 @@ function cbStart() {
   if (c.order === 'rand') p = p.map(e => [Math.random(), e]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
   else p = p.slice().sort((a, b) => b.year - a.year || a.no - b.no);
   if (c.n && c.n < p.length) p = p.slice(0, c.n);
-  cb().run = { ids: p.map(e => e.id), i: 0, ans: {}, peek: {}, t0: Date.now(), done: false, el: 0, years: c.years.slice() };
+  cb().run = { ids: p.map(e => e.id), i: 0, ans: {}, peek: {}, t0: Date.now(), done: false, el: 0, years: c.years.slice(), sid: c.sid, wrongOnly: !!c.wrong };
   save(); location.hash = '#/exam/run';
 }
-function cbChoices(e) {
-  const run = cb().run, sel = run.ans[e.id], pk = run.peek[e.id], cn = cbAns(e);
+/* 보기: 풀이 중(run)에는 선택·잠금, 복습(rec)에서는 정답 초록 · 내가 고른 틀린 답 빨강 */
+function cbChoices(e, rec, review) {
+  const sel = rec.ans[e.id], pk = rec.peek[e.id], cn = cbAns(e), lock = review || pk;
   const lines = (e.q || '').split('\n').slice(1);
   const btn = n => {
     const lab = e.img ? `<b>${CB_NUM[n - 1]}</b>` : `<b>${CB_NUM[n - 1]}</b><span>${esc((lines.find(l => l.startsWith(CB_NUM[n - 1])) || '').slice(1).trim())}</span>`;
-    const cls = [sel === n ? 'sel' : '', pk && n === cn ? 'ok' : '', pk && sel === n && n !== cn ? 'no' : ''].join(' ');
-    return `<button class="cbc ${e.img ? 'num' : ''} ${cls}" data-act="cbans" data-n="${n}" ${pk ? 'disabled' : ''}>${lab}</button>`;
+    const cls = [sel === n ? 'sel' : '', lock && n === cn ? 'ok' : '', lock && sel === n && n !== cn ? 'no' : ''].join(' ');
+    return `<${review ? 'div' : 'button'} class="cbc ${e.img ? 'num' : ''} ${cls}" ${review ? '' : `data-act="cbans" data-n="${n}" ${pk ? 'disabled' : ''}`}>${lab}</${review ? 'div' : 'button'}>`;
   };
   return `<div class="cbch ${e.img ? 'row' : ''}">${[1, 2, 3, 4].map(btn).join('')}</div>`;
 }
-function vCbt(sub) {
+function vCbt(sub, idx) {
   const c = cb();
   if (sub === 'run') return vCbtRun();
-  if (sub === 'result') return vCbtResult();
+  if (sub === 'log' || sub === 'result') return vCbtLog(sub === 'result' ? 0 : +idx);
   setTop({ title: '기출 시험', sub: 'CBT처럼 풀어 보기' });
-  const su = c.setup, years = [...new Set(BEX.map(e => e.year))].sort((a, b) => b - a);
-  const pool = cbPool(), nw = Object.keys(c.wrong).filter(k => c.wrong[k] && cbEx(k)).length;
+  const su = c.setup, inS = BEX.filter(e => exSid(e) === su.sid);
+  const years = [...new Set(inS.map(e => e.year))].sort((a, b) => b - a);
+  const pool = cbPool(), nw = Object.keys(c.wrong).filter(k => c.wrong[k] && cbEx(k) && exSid(cbEx(k)) === su.sid).length;
+  const stabs = `<div class="seg cbsubj">${CB_SUBJ.map(([k, n]) => `<button class="${su.sid === k ? 'on' : ''}" data-act="cbsubj" data-s="${k}">${n}</button>`).join('')}</div>`;
   const ychips = `<button class="chip ${!su.years.length ? 'on' : ''}" data-act="cbyear" data-y="">전체</button>` + years.map(y => `<button class="chip ${su.years.includes(y) ? 'on' : ''}" data-act="cbyear" data-y="${y}">${y}</button>`).join('');
   const nchips = [10, 20, 0].map(n => `<button class="chip ${su.n === n ? 'on' : ''}" data-act="cbn" data-n="${n}">${n || '전체'}</button>`).join('');
-  const resume = c.run && !c.run.done ? `<div class="card" style="margin-bottom:12px"><b>진행 중인 시험이 있어요</b><div class="small muted" style="margin:6px 0 10px">${Object.keys(c.run.ans).length}/${c.run.ids.length}문제 푼 상태 · ${cbFmt(cbElapsed(c.run))} 경과</div><div style="display:flex;gap:8px"><button class="btn pri" data-act="go" data-to="#/exam/run">이어서 풀기</button><button class="btn" data-act="cbquit">그만두기</button></div></div>` : '';
-  const logs = c.log.slice(0, 10).map(l => `<div class="row" style="cursor:default"><div class="tt"><b style="font-weight:650">${l.score}/${l.n}</b> <span class="dim small">${Math.round(l.score / l.n * 100)}점 · ${cbFmt(l.sec)}</span><div class="xs dim" style="margin-top:3px">${fmtDate(new Date(l.t).toISOString().slice(0, 10))} · ${l.years.length ? l.years.join('·') : '전체 연도'}${l.wrongOnly ? ' · 틀린 문제' : ''}</div></div></div>`).join('');
-  return `<div class="wrap">${resume}
-  <div class="card cbsetup"><h3 style="margin:0 0 10px">시험 만들기</h3>
-  <div class="f"><label>연도 <span class="dim">(여러 개 선택)</span></label><div class="chips scroll">${ychips}</div></div>
+  const resume = c.run && !c.run.done ? `<div class="card" style="margin-bottom:12px"><b>진행 중인 시험이 있어요</b><div class="small muted" style="margin:6px 0 10px">${cbSName(c.run.sid || 'survey')} · ${Object.keys(c.run.ans).length}/${c.run.ids.length}문제 푼 상태 · ${cbFmt(cbElapsed(c.run))} 경과</div><div style="display:flex;gap:8px"><button class="btn pri" data-act="go" data-to="#/exam/run">이어서 풀기</button><button class="btn" data-act="cbquit">그만두기</button></div></div>` : '';
+  const logs = c.log.map((l, k) => `<div class="cblog"><button class="row" data-act="go" data-to="#/exam/log/${k}"><div class="tt"><b style="font-weight:650">${l.score}/${l.n}</b> <span class="dim small">${Math.round(l.score / l.n * 100)}점 · ${cbFmt(l.sec)}</span><div class="xs dim" style="margin-top:3px">${cbDate(l.t)} · ${cbSName(l.sid || 'survey')} · ${l.years.length ? l.years.join('·') : '전체 연도'}${l.wrongOnly ? ' · 틀린 문제' : ''}</div></div><span class="meta">${ic('right')}</span></button><button class="ib cbdel" data-act="cbdel" data-i="${k}" aria-label="기록 삭제">${ic('trash')}</button></div>`).join('');
+  const body = inS.length ? `<div class="f"><label>연도 <span class="dim">(여러 개 선택)</span></label><div class="chips scroll">${ychips}</div></div>
   <div class="f"><label>문항 수</label><div class="chips">${nchips}</div></div>
   <div class="f"><label>순서</label><div class="seg" style="align-self:flex-start"><button class="${su.order === 'rand' ? 'on' : ''}" data-act="cbord" data-o="rand">랜덤</button><button class="${su.order === 'seq' ? 'on' : ''}" data-act="cbord" data-o="seq">최신 연도순</button></div></div>
   <div class="f"><label>범위 추가</label><div class="chips"><button class="chip ${su.wrong ? 'on' : ''}" data-act="cbwrong">틀렸던 문제만 · ${nw}</button></div></div>
   <div class="small muted" style="margin:6px 0 12px">대상 ${pool.length}문항 → ${su.n && su.n < pool.length ? su.n : pool.length}문제 출제</div>
-  <button class="btn pri" style="width:100%" data-act="cbstart" ${pool.length ? '' : 'disabled'}>시험 시작</button></div>
-  ${c.log.length ? `<div class="sec"><h2>최근 기록</h2></div><div class="list">${logs}</div>` : ''}
+  <button class="btn pri" style="width:100%" data-act="cbstart" ${pool.length ? '' : 'disabled'}>시험 시작</button>` : `<div class="empty" style="padding:22px 6px">${cbSName(su.sid)} 기출은 아직 준비 중이에요.</div>`;
+  return `<div class="wrap">${resume}
+  <div class="card cbsetup"><h3 style="margin:0 0 12px">시험 만들기</h3>${stabs}${body}</div>
+  ${c.log.length ? `<div class="sec"><h2>최근 기록 · ${c.log.length}/10</h2><button class="lk" data-act="cbdelall">전체 삭제</button></div><div class="list">${logs}</div><div class="hint">기록을 누르면 문제별로 맞은 것은 초록, 틀린 것은 빨강으로 다시 볼 수 있어요. 최근 10개만 보관해요.</div>` : ''}
   <div class="hint">풀이 중 “정답·해설 보기”를 누르면 그 문제는 답이 잠기고 채점돼요. 답을 고른 뒤 눌렀다면 그 답으로, 안 골랐다면 틀린 것으로 처리해요.</div>
   <div style="margin-top:10px"><button class="lk" data-act="go" data-to="#/subject/survey/exams">기출 문제 열람하기 →</button></div></div>`;
 }
 function vCbtRun() {
   const c = cb(), run = c.run;
-  if (!run || run.done) { setTimeout(() => { location.hash = run && run.done ? '#/exam/result' : '#/exam'; }, 0); return '<div class="wrap"></div>'; }
+  if (!run || run.done) { setTimeout(() => { location.hash = '#/exam'; }, 0); return '<div class="wrap"></div>'; }
   const id = run.ids[run.i], e = cbEx(id), n = run.ids.length;
-  setTop({ back: '#/exam', title: '기출 시험', sub: `${run.i + 1} / ${n}`, right: `<span class="cbtime" id="cb-time">0:00</span>` });
+  setTop({ back: '#/exam', title: '기출 시험', sub: `${cbSName(run.sid || 'survey')} · ${run.i + 1} / ${n}`, right: `<span class="cbtime" id="cb-time">0:00</span>` });
   const pk = run.peek[id];
   const stem = e.img ? `<img class="qimg" alt="${esc(e.year)}년 ${e.no}번 문제" src="${e.img}">` : `<div class="q cbstem">${esc((e.q || '').split('\n')[0])}</div>`;
   const grid = run.ids.map((x, k) => `<button class="cbg ${k === run.i ? 'cur' : ''} ${run.ans[x] ? 'done' : ''} ${run.peek[x] ? 'pk' : ''}" data-act="cbgo" data-i="${k}">${k + 1}</button>`).join('');
   const sol = pk ? `<div class="card cbsol"><div class="ca">정답 <b>${esc(e.ans)}</b>${run.ans[id] ? ` · 내 답 <b>${CB_NUM[run.ans[id] - 1]}</b> ${run.ans[id] === cbAns(e) ? '✓' : '✕'}` : ' · 답을 고르지 않아 오답 처리'}</div>${e.a ? `<div class="small muted" style="margin-top:6px;line-height:1.7">${esc(e.a)}</div>` : ''}</div>` : '';
   const answered = Object.keys(run.ans).length;
   return `<div class="wrap cbwrap"><div class="cbgrid">${grid}</div>
-  <div class="card cbq"><div class="eh" style="margin-bottom:8px"><b>${run.i + 1}번</b><span class="badge">${esc(e.year)} 지방직 ${e.no}번</span>${pk ? '<span class="badge">해설 확인</span>' : ''}</div>${stem}${cbChoices(e)}
+  <div class="card cbq"><div class="eh" style="margin-bottom:8px"><b>${run.i + 1}번</b><span class="badge">${esc(e.year)} 지방직 ${e.no}번</span>${pk ? '<span class="badge">해설 확인</span>' : ''}</div>${stem}${cbChoices(e, run, false)}
   ${pk ? '' : `<button class="btn" style="margin-top:12px" data-act="cbpeek">정답·해설 보기</button>`}</div>${sol}
   <div class="navbtm"><button class="btn" data-act="cbgo" data-i="${run.i - 1}" ${run.i ? '' : 'disabled'}>${ic('left')}<span>이전</span></button>${run.i < n - 1 ? `<button class="btn pri" data-act="cbgo" data-i="${run.i + 1}">${ic('right')}<span>다음</span></button>` : `<button class="btn pri" data-act="cbsubmit">제출 (${answered}/${n})</button>`}</div>
   <div style="text-align:center;margin-top:10px"><button class="lk" data-act="cbsubmit">지금 제출하기</button></div></div>`;
@@ -1644,25 +1664,28 @@ function cbFinish() {
   if (!run || run.done) return;
   const left = run.ids.length - Object.keys(run.ans).length;
   if (left && !confirm(`아직 답을 안 고른 문제가 ${left}개예요. 틀린 것으로 처리하고 제출할까요?`)) return;
-  run.el = cbElapsed(run); run.done = true;
+  const sec = Math.round(cbElapsed(run));
   let score = 0;
   run.ids.forEach(id => { const e = cbEx(id), ok = run.ans[id] === cbAns(e); if (ok) { score++; delete c.wrong[id]; } else c.wrong[id] = 1; });
-  c.log.unshift({ t: Date.now(), n: run.ids.length, score, sec: Math.round(run.el), years: run.years || [], wrongOnly: !!c.setup.wrong });
-  c.log = c.log.slice(0, 40);
-  save(); location.hash = '#/exam/result';
+  c.log.unshift({ t: Date.now(), n: run.ids.length, score, sec, ids: run.ids, ans: run.ans, peek: run.peek, years: run.years || [], sid: run.sid || 'survey', wrongOnly: !!run.wrongOnly });
+  c.log = c.log.slice(0, 10);
+  c.run = null;
+  save(); location.hash = '#/exam/log/0';
 }
-function vCbtResult() {
-  const c = cb(), run = c.run;
-  if (!run || !run.done) { setTimeout(() => { location.hash = '#/exam'; }, 0); return '<div class="wrap"></div>'; }
-  setTop({ back: '#/exam', title: '시험 결과', sub: '기출 시험' });
-  const rows = run.ids.map((id, k) => {
-    const e = cbEx(id), my = run.ans[id], ok = my === cbAns(e);
-    return `<details class="card cbres ${ok ? 'ok' : 'no'}"><summary><b>${k + 1}번</b> <span class="badge">${esc(e.year)} ${e.no}번</span> <span class="rs">${ok ? '정답' : my ? '오답' : '무응답'}</span>${run.peek[id] ? ' <span class="badge">해설 확인</span>' : ''}<span class="dim small" style="margin-left:auto">정답 ${esc(e.ans)}${my ? ' · 내 답 ' + CB_NUM[my - 1] : ''}</span></summary>${examBody(e)}<div class="arts">${(e.arts || []).filter(a => ARTS[a] && !LAWS[ARTS[a].lid].dupOf).map(a => `<button data-act="go" data-to="${readHref(a)}">${esc(LAWS[ARTS[a].lid].short || LAWS[ARTS[a].lid].name)} ${esc(ARTS[a].a.no)}</button>`).join('')}</div></details>`;
+function vCbtLog(k) {
+  const c = cb(), L = c.log[k];
+  if (!L) { setTimeout(() => { location.hash = '#/exam'; }, 0); return '<div class="wrap"></div>'; }
+  setTop({ back: '#/exam', title: k === 0 ? '시험 결과' : '지난 시험', sub: `${cbSName(L.sid || 'survey')} · ${cbDate(L.t)}` });
+  const items = L.ids.map(id => cbEx(id)).filter(Boolean);
+  const rows = items.map((e, i) => {
+    const my = L.ans[e.id], ok = my === cbAns(e);
+    const stem = e.img ? `<img class="qimg" alt="" src="${e.img}">` : `<div class="q cbstem">${esc((e.q || '').split('\n')[0])}</div>`;
+    return `<details class="card cbres ${ok ? 'ok' : 'no'}"><summary><b>${i + 1}번</b> <span class="badge">${esc(e.year)} ${e.no}번</span> <span class="rs">${ok ? '정답' : my ? '오답' : '무응답'}</span>${L.peek[e.id] ? ' <span class="badge">해설 확인</span>' : ''}<span class="dim small" style="margin-left:auto">정답 ${esc(e.ans)}${my ? ' · 내 답 ' + CB_NUM[my - 1] : ''}</span></summary>${stem}${cbChoices(e, L, true)}${e.a ? `<div class="small muted" style="margin-top:10px;line-height:1.7"><b>해설</b> ${esc(e.a)}</div>` : ''}<div class="arts">${(e.arts || []).filter(a => ARTS[a] && !LAWS[ARTS[a].lid].dupOf).map(a => `<button data-act="go" data-to="${readHref(a)}">${esc(LAWS[ARTS[a].lid].short || LAWS[ARTS[a].lid].name)} ${esc(ARTS[a].a.no)}</button>`).join('')}</div></details>`;
   }).join('');
-  const score = run.ids.filter(id => run.ans[id] === cbAns(cbEx(id))).length, n = run.ids.length;
-  const nwrong = n - score;
-  return `<div class="wrap"><div class="card cbscore"><div class="big">${score}<small> / ${n}</small></div><div class="muted">${Math.round(score / n * 100)}점 · 소요 시간 ${cbFmt(run.el)}</div></div>
-  <div style="display:flex;gap:8px;margin:12px 0">${nwrong ? '<button class="btn pri" style="flex:1" data-act="cbretry">틀린 문제만 다시</button>' : ''}<button class="btn" style="flex:1" data-act="cbnew">새 시험</button></div>
+  const n = L.n, nwrong = n - L.score;
+  const dots = items.map(e => `<i class="${L.ans[e.id] === cbAns(e) ? 'ok' : 'no'}"></i>`).join('');
+  return `<div class="wrap"><div class="card cbscore"><div class="big">${L.score}<small> / ${n}</small></div><div class="muted">${Math.round(L.score / n * 100)}점 · 소요 시간 ${cbFmt(L.sec)}</div><div class="cbdots">${dots}</div></div>
+  <div style="display:flex;gap:8px;margin:12px 0">${nwrong ? `<button class="btn pri" style="flex:1" data-act="cbretry" data-i="${k}">틀린 문제만 다시</button>` : ''}<button class="btn" style="flex:1" data-act="cbnew">새 시험</button></div>
   <div style="display:flex;flex-direction:column;gap:8px">${rows}</div></div>`;
 }
 
@@ -2186,6 +2209,7 @@ function act(name, a, e) {
       CMP.sel.push(q); CMP.cur = CMP.sel.length - 1; CMP.limit = 30; render(); break;
     }
     case 'ptype': S.settings.ptype = d.g; save(); render(); break;
+    case 'cbsubj': { const su = cb().setup; su.sid = d.s; su.years = []; su.wrong = false; save(); render(); break; }
     case 'cbyear': { const su = cb().setup, y = d.y ? +d.y : null; if (!y) su.years = []; else su.years = su.years.includes(y) ? su.years.filter(x => x !== y) : su.years.concat(y); save(); render(); break; }
     case 'cbn': cb().setup.n = +d.n; save(); render(); break;
     case 'cbord': cb().setup.order = d.o; save(); render(); break;
@@ -2196,8 +2220,10 @@ function act(name, a, e) {
     case 'cbpeek': { const run = cb().run, id = run.ids[run.i]; run.peek[id] = 1; save(); render(); break; }
     case 'cbgo': { const run = cb().run, i = +d.i; if (i >= 0 && i < run.ids.length) { run.i = i; save(); render(); window.scrollTo(0, 0); } break; }
     case 'cbsubmit': cbFinish(); break;
-    case 'cbretry': { const c = cb(), run = c.run, w = run.ids.filter(id => run.ans[id] !== cbAns(cbEx(id))); c.setup.wrong = true; c.run = { ids: w, i: 0, ans: {}, peek: {}, t0: Date.now(), done: false, el: 0, years: run.years || [] }; save(); location.hash = '#/exam/run'; break; }
-    case 'cbnew': cb().run = null; cb().setup.wrong = false; save(); location.hash = '#/exam'; break;
+    case 'cbdel': if (confirm('이 기록을 삭제할까요? (틀렸던 문제 목록은 유지돼요)')) { cb().log.splice(+d.i, 1); save(); render(); } break;
+    case 'cbdelall': if (confirm('시험 기록을 모두 삭제할까요? (틀렸던 문제 목록은 유지돼요)')) { cb().log = []; save(); render(); } break;
+    case 'cbretry': { const c = cb(), L = c.log[+d.i]; if (!L) break; const w = L.ids.filter(id => L.ans[id] !== cbAns(cbEx(id))); c.setup.sid = L.sid || 'survey'; c.run = { ids: w, i: 0, ans: {}, peek: {}, t0: Date.now(), done: false, el: 0, years: L.years || [], sid: L.sid || 'survey', wrongOnly: true }; save(); location.hash = '#/exam/run'; break; }
+    case 'cbnew': cb().setup.wrong = false; save(); location.hash = '#/exam'; break;
     case 'starfilter': S.settings.starOnly = !S.settings.starOnly; save(); render(); break;
     case 'exyear': EX.year = d.y ? +d.y : null; render(); break;
     case 'tocfold': S.settings.tocOff = !S.settings.tocOff; save(); render(); break;
