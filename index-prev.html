@@ -621,6 +621,13 @@ details.cbres .rs{font-weight:700}
 details.cbres.ok .rs{color:#4f9d6b}
 details.cbres.no .rs{color:#c25b5b}
 details.cbres[open] summary{margin-bottom:10px}
+
+#app{min-height:calc(100vh / var(--zf,1))}
+#rail{height:calc(100vh / var(--zf,1))}
+.sheet{max-height:calc(88vh / var(--zf,1))}
+.chklist{max-height:calc(48vh / var(--zf,1))}
+.zoom{max-height:calc(70vh / var(--zf,1))}
+@media(min-width:1100px){.toc{max-height:calc((100vh - 80px) / var(--zf,1))}}
 </style>
 </head>
 <body>
@@ -928,6 +935,7 @@ function applyTheme() {
   if (!THEMES.some(t => t[0] === S.settings.theme)) S.settings.theme = 'light';
   document.documentElement.setAttribute('data-theme', S.settings.theme);
   document.documentElement.style.setProperty('--fs', (17 * S.settings.font).toFixed(1) + 'px');
+  { const z = S.settings.zoom || 1; document.documentElement.style.zoom = z === 1 ? '' : String(z); document.documentElement.style.setProperty('--zf', String(z)); }
   const m = document.querySelector('meta[name=theme-color]');
   if (m) m.setAttribute('content', themeInfo(S.settings.theme)[2]);
 }
@@ -1936,6 +1944,10 @@ function openSettings() {
   <div class="f"><label>앱 이름</label><div style="display:flex;gap:8px"><input class="in" id="nm-in" maxlength="20" value="${esc(appName())}" style="flex:1" placeholder="${esc(DEF_NAME)}"><button class="btn sm pri" data-act="setname" style="height:46px" disabled>저장</button></div><div class="hint">홈 화면·메뉴·탭 제목에 쓰여요. 이미 추가한 홈 화면 아이콘 이름은 지우고 다시 추가해야 바뀌어요. <button class="lk" data-act="resetname" style="text-decoration:underline;color:var(--ac);font-weight:600">기본 이름으로</button></div></div>
   <div class="f"><label>테마</label><div class="seg" style="align-self:flex-start">${THEMES.map(t => `<button class="${s.theme === t[0] ? 'on' : ''}" data-act="settheme" data-v="${t[0]}">${t[1]}</button>`).join('')}</div><div class="hint">화면 위쪽 아이콘을 누르면 화이트 → 블랙 → 색상 순서로 바뀌어요.</div></div>
   <div class="f"><label>글자 크기</label><div class="seg" style="align-self:flex-start">${[['작게', .9], ['보통', 1], ['크게', 1.15], ['아주 크게', 1.3]].map(x => `<button class="${s.font === x[1] ? 'on' : ''}" data-act="setfont" data-v="${x[1]}">${x[0]}</button>`).join('')}</div></div>
+  <div class="f"><label>화면 크기 (확대·축소)</label>
+    <div style="display:flex;align-items:center;gap:10px"><button class="btn sm" data-act="zoomdn" aria-label="축소">－</button><input type="range" id="zoom-in" min="70" max="170" step="5" value="${Math.round((s.zoom || 1) * 100)}" style="flex:1;accent-color:var(--ac)"><button class="btn sm" data-act="zoomup" aria-label="확대">＋</button><b id="zoom-val" style="min-width:48px;text-align:right">${Math.round((s.zoom || 1) * 100)}%</b></div>
+    <div class="seg" style="align-self:flex-start;margin-top:8px">${[[.8, '80%'], [.9, '90%'], [1, '100%'], [1.15, '115%'], [1.3, '130%'], [1.5, '150%']].map(x => `<button class="${Math.abs((s.zoom || 1) - x[0]) < .01 ? 'on' : ''}" data-act="setzoom" data-v="${x[0]}">${x[1]}</button>`).join('')}</div>
+    <div class="hint">앱 화면 전체를 키우거나 줄여요. 글자 크기와 따로 쓸 수 있고, 두 손가락으로 벌려서 확대하는 것도 그대로 돼요.</div></div>
   <div class="f"><label>켜 둘 빈칸 유형</label><div class="chips">${chip('np', '숫자·기한')}${chip('term', '명칭')}${chip('org', '기관')}${chip('item', '각 호 사항')}${chip('user', '내 빈칸')}</div><div class="hint">조문 화면 위쪽 칩으로도 바꿀 수 있어요. 명칭·기관은 반복이 많아 기본은 꺼 두었어요. “각 호 사항”은 ‘다음 각 호의 사항’ 목록을 호마다 빈칸으로 가려요.</div></div>
   <div class="f"><label>가리지 않은 포인트</label><div class="chips"><button class="chip ${s.bold !== false ? 'on' : ''}" data-act="setbold">숫자·명칭·기관 볼드 강조</button></div><div class="hint">읽기 모드나 꺼 둔 유형에서 외울 포인트를 굵게 보여줘요.</div></div>
   <div class="f"><label>데이터</label><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn sm" data-act="export">${ic('down')}백업 내보내기</button><button class="btn sm" data-act="import">${ic('up')}불러오기</button><button class="btn sm" data-act="importtext">붙여넣어 복원</button><button class="btn sm bad" data-act="resetall">모든 기록 초기화</button></div></div>
@@ -2027,6 +2039,7 @@ document.addEventListener('input', e => {
     const q = t.value.trim();
     $$('#cmp-chips .chip').forEach(el => { el.style.display = !q || el.dataset.t.includes(q) ? '' : 'none'; });
   }
+  if (t.id === 'zoom-in') { S.settings.zoom = Math.round(+t.value) / 100; applyTheme(); const v = $('#zoom-val'); if (v) v.textContent = Math.round(+t.value) + '%'; save(); }
   if (t.id === 'nm-in') { const b = $('[data-act="setname"]'); if (b) b.disabled = t.value.trim() === appName() || !t.value.trim(); }
   if (t.matches && t.matches('[data-filter]')) {
     const q = t.value.trim().toLowerCase();
@@ -2140,8 +2153,10 @@ document.addEventListener('mouseup', () => { if (DRAG && Date.now() - LASTTOUCH 
 let SW = null;
 function swipeStart(e, t) {
   const r = parseRoute();
-  if (EDIT || $('#sheet-root').firstChild || !(r[0] === 'read' || r[0] === 'review')) return null;
-  if (e.target.closest && e.target.closest('.tblw, .toc, .tbchips, input, textarea, select, .pop, .toast')) return null;
+  if (EDIT || $('#sheet-root').firstChild) return null;
+  if (e.touches && e.touches.length > 1) return null;                                   // 두 손가락(핀치)은 건드리지 않음
+  if (window.visualViewport && window.visualViewport.scale > 1.03) return null;        // 확대한 상태에서는 화면 이동만
+  if (e.target.closest && e.target.closest('.tblw, .toc, .tbchips, .scroll, .cmptabs, .cbgrid, input, textarea, select, .pop, .toast, .law.edit, details.ans[open] summary')) return null;
   if (t.clientX < 24 || t.clientX > innerWidth - 24) return null;   // iOS 가장자리 뒤로가기 제스처와 충돌 방지
   return { x: t.clientX, y: t.clientY, t: Date.now() };
 }
@@ -2151,8 +2166,46 @@ function swipeEnd(e) {
   if (Date.now() - SW.t > 800 || Math.abs(dx) < 70 || Math.abs(dy) > 60 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
   stepBy(dx < 0 ? 1 : -1);
 }
+const TABS = ['#/', '#/subject/survey/laws', '#/compare', '#/exam', '#/review', '#/stats'];
+function tabIndexOf(r) {
+  if (!r.length) return 0;
+  if (r[0] === 'subject') return 1;
+  if (r[0] === 'compare' && (!r[1] || r[1] === 'terms')) return 2;
+  if (r[0] === 'exam' && !r[1]) return 3;
+  if (r[0] === 'review' && !r[1]) return 4;
+  if (r[0] === 'stats') return 5;
+  return -1;
+}
+function goBackSwipe() {
+  const b = $('#top [aria-label="뒤로"]');
+  if (b) { SLIDE = 'prev'; b.click(); return true; }
+  return false;
+}
+function stepAny(dir) {
+  const r = parseRoute();
+  if (r[0] === 'exam' && r[1] === 'run') {
+    const run = cb().run; if (!run || run.done) return;
+    const i = run.i + dir;
+    if (i >= 0 && i < run.ids.length) { run.i = i; save(); render(); window.scrollTo(0, 0); } else toast(dir > 0 ? '마지막 문제예요' : '첫 문제예요');
+    return;
+  }
+  if (r[0] === 'subject') {
+    const tab = r[2] || 'laws';
+    if (dir > 0 && tab === 'laws') { location.hash = `#/subject/${r[1] || 'survey'}/exams`; return; }
+    if (dir < 0 && tab === 'exams') { location.hash = `#/subject/${r[1] || 'survey'}/laws`; return; }
+  }
+  const ti = tabIndexOf(r);
+  if (ti >= 0) {
+    const n = ti + dir;
+    if (n >= 0 && n < TABS.length) { SLIDE = dir > 0 ? 'next' : 'prev'; location.hash = TABS[n]; }
+    return;
+  }
+  if (dir < 0) goBackSwipe();
+}
 function stepBy(dir) {
   const r = parseRoute();
+  if (!(r[0] === 'read' || r[0] === 'review')) { stepAny(dir); return; }
+  if (r[0] === 'review' && r[1] !== 'run') { stepAny(dir); return; }
   if (r[0] === 'review') { if (RV && RV.i < RV.q.length && dir > 0) { RV.i++; closePop(); render(); window.scrollTo(0, 0); } return; }
   if (r[0] !== 'read' || !ARTS[r[1]]) return;
   if (S.settings.mode === 'card') {
@@ -2186,6 +2239,8 @@ function act(name, a, e) {
     case 'theme': S.settings.theme = nextTheme(S.settings.theme)[0]; applyTheme(); save(); render(); toast(`${themeInfo(S.settings.theme)[1]} 테마`); break;
     case 'settings': openSettings(); break;
     case 'settheme': S.settings.theme = d.v; applyTheme(); save(); openSettings(); render(); break;
+    case 'setzoom': S.settings.zoom = +d.v; applyTheme(); save(); openSettings(); break;
+    case 'zoomdn': case 'zoomup': { const z = Math.min(1.7, Math.max(.7, Math.round(((S.settings.zoom || 1) + (name === 'zoomup' ? .05 : -.05)) * 100) / 100)); S.settings.zoom = z; applyTheme(); save(); openSettings(); break; }
     case 'setfont': S.settings.font = +d.v; applyTheme(); save(); openSettings(); break;
     case 'setname': { S.settings.appName = ($('#nm-in').value || '').trim().slice(0, 20); applyName(); save(); render(); openSettings(); toast('앱 이름을 바꿨어요'); break; }
     case 'resetname': S.settings.appName = ''; applyName(); save(); render(); openSettings(); toast('기본 이름으로 되돌렸어요'); break;
