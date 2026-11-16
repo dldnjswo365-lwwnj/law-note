@@ -1103,11 +1103,11 @@ function vHome() {
   <div class="logo"><img class="appicon lg" src="data:image/png;base64,${PACK.icon}" alt=""><div><h1>${esc(appName())}</h1><p>지적직 · LX 법령 빈칸 학습</p></div></div>
   <div style="margin-top:14px">${hero}</div>
   <div class="sec"><h2>기출</h2></div>
-  <button class="card tap cmpcard" data-act="go" data-to="#/exam"><i class="cmpic">${ic('cbt')}</i><div><h3>기출 시험</h3><div class="small muted" style="margin-top:4px;line-height:1.6">${(cb().log[0] ? `최근 ${cb().log[0].score}/${cb().log[0].n} · ${cbFmt(cb().log[0].sec)} · 연도와 문항 수를 골라 CBT처럼 풀어 봐요.` : '연도와 문항 수를 골라 CBT처럼 풀어 보고, 푼 기록을 다시 확인해요.')}</div></div>${ic('right')}</button>
+  <button class="card tap cmpcard" data-act="go" data-to="#/exam"><i class="cmpic">${ic('cbt')}</i><div><h3>기출 시험</h3><div class="small muted" style="margin-top:4px;line-height:1.6">연도와 문항 수를 골라 기출 문제를 풀어 봐요.</div></div>${ic('right')}</button>
   <div class="sec"><h2>과목</h2></div><div class="grid2 stack">${sbj}</div>
+  </div><div class="hr">
   <div class="sec"><h2>비교</h2></div>
   <button class="card tap cmpcard" data-act="go" data-to="#/compare"><i class="cmpic">${ic('table')}</i><div><h3>핵심 비교표 · 용어 모아보기</h3><div class="small muted" style="margin-top:4px;line-height:1.6">헷갈리는 기준을 법령 원문 그대로 표로 비교하고, 용어별로 모든 법령의 문장을 모아 봐요.</div></div>${ic('right')}</button>
-  </div><div class="hr">
   <div class="sec"><h2>약점 조문 TOP</h2></div>${weakH}
   <div class="sec"><h2>백업</h2></div>
   <div class="card"><div class="small muted" style="line-height:1.7">학습 기록은 이 기기의 브라우저에만 저장돼요. iPad와 폰을 같이 쓰거나 기기를 바꿀 땐 백업 파일로 옮기세요. <span class="dim">· ${bk}</span></div><div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn" data-act="export">${ic('down')}내보내기</button><button class="btn" data-act="import">${ic('up')}불러오기</button><button class="btn sm" data-act="exporttext" style="align-self:center">텍스트로 복사</button></div></div>
@@ -1622,7 +1622,7 @@ function vCbt(sub, idx) {
   const c = cb();
   if (sub === 'run') return vCbtRun();
   if (sub === 'log' || sub === 'result') return vCbtLog(sub === 'result' ? 0 : +idx);
-  setTop({ title: '기출 시험', sub: 'CBT처럼 풀어 보기' });
+  setTop({ title: '기출 시험', sub: '기출 문제 풀어 보기' });
   const su = c.setup, inS = BEX.filter(e => exSid(e) === su.sid);
   const years = [...new Set(inS.map(e => e.year))].sort((a, b) => b - a);
   const pool = cbPool(), nw = Object.keys(c.wrong).filter(k => c.wrong[k] && cbEx(k) && exSid(cbEx(k)) === su.sid).length;
@@ -1634,7 +1634,7 @@ function vCbt(sub, idx) {
   const body = inS.length ? `<div class="f"><label>연도 <span class="dim">(여러 개 선택)</span></label><div class="chips scroll">${ychips}</div></div>
   <div class="f"><label>문항 수</label><div class="chips">${nchips}</div></div>
   <div class="f"><label>순서</label><div class="seg" style="align-self:flex-start"><button class="${su.order === 'rand' ? 'on' : ''}" data-act="cbord" data-o="rand">랜덤</button><button class="${su.order === 'seq' ? 'on' : ''}" data-act="cbord" data-o="seq">최신 연도순</button></div></div>
-  <div class="f"><label>범위 추가</label><div class="chips"><button class="chip ${su.wrong ? 'on' : ''}" data-act="cbwrong">틀렸던 문제만 · ${nw}</button></div></div>
+  <div class="f"><label>범위 추가</label><div class="chips"><button class="chip ${su.wrong ? 'on' : ''}" data-act="cbwrong">틀렸던 문제만 · ${nw}</button>${nw ? '<button class="chip" data-act="cbwrongreset">틀렸던 문제 초기화</button>' : ''}</div></div>
   <div class="small muted" style="margin:6px 0 12px">대상 ${pool.length}문항 → ${su.n && su.n < pool.length ? su.n : pool.length}문제 출제</div>
   <button class="btn pri" style="width:100%" data-act="cbstart" ${pool.length ? '' : 'disabled'}>시험 시작</button>` : `<div class="empty" style="padding:22px 6px">${cbSName(su.sid)} 기출은 아직 준비 중이에요.</div>`;
   return `<div class="wrap">${resume}
@@ -1680,7 +1680,7 @@ function vCbtLog(k) {
   const rows = items.map((e, i) => {
     const my = L.ans[e.id], ok = my === cbAns(e);
     const stem = e.img ? `<img class="qimg" alt="" src="${e.img}">` : `<div class="q cbstem">${esc((e.q || '').split('\n')[0])}</div>`;
-    return `<details class="card cbres ${ok ? 'ok' : 'no'}"><summary><b>${i + 1}번</b> <span class="badge">${esc(e.year)} ${e.no}번</span> <span class="rs">${ok ? '정답' : my ? '오답' : '무응답'}</span>${L.peek[e.id] ? ' <span class="badge">해설 확인</span>' : ''}<span class="dim small" style="margin-left:auto">정답 ${esc(e.ans)}${my ? ' · 내 답 ' + CB_NUM[my - 1] : ''}</span></summary>${stem}${cbChoices(e, L, true)}${e.a ? `<div class="small muted" style="margin-top:10px;line-height:1.7"><b>해설</b> ${esc(e.a)}</div>` : ''}<div class="arts">${(e.arts || []).filter(a => ARTS[a] && !LAWS[ARTS[a].lid].dupOf).map(a => `<button data-act="go" data-to="${readHref(a)}">${esc(LAWS[ARTS[a].lid].short || LAWS[ARTS[a].lid].name)} ${esc(ARTS[a].a.no)}</button>`).join('')}</div></details>`;
+    return `<details open class="card cbres ${ok ? 'ok' : 'no'}"><summary><b>${i + 1}번</b> <span class="badge">${esc(e.year)} ${e.no}번</span> <span class="rs">${ok ? '정답' : my ? '오답' : '무응답'}</span>${L.peek[e.id] ? ' <span class="badge">해설 확인</span>' : ''}<span class="dim small" style="margin-left:auto">정답 ${esc(e.ans)}${my ? ' · 내 답 ' + CB_NUM[my - 1] : ''}</span></summary>${stem}${cbChoices(e, L, true)}${e.a ? `<div class="small muted" style="margin-top:10px;line-height:1.7"><b>해설</b> ${esc(e.a)}</div>` : ''}<div class="arts">${(e.arts || []).filter(a => ARTS[a] && !LAWS[ARTS[a].lid].dupOf).map(a => `<button data-act="go" data-to="${readHref(a)}">${esc(LAWS[ARTS[a].lid].short || LAWS[ARTS[a].lid].name)} ${esc(ARTS[a].a.no)}</button>`).join('')}</div></details>`;
   }).join('');
   const n = L.n, nwrong = n - L.score;
   const dots = items.map(e => `<i class="${L.ans[e.id] === cbAns(e) ? 'ok' : 'no'}"></i>`).join('');
@@ -2220,6 +2220,7 @@ function act(name, a, e) {
     case 'cbpeek': { const run = cb().run, id = run.ids[run.i]; run.peek[id] = 1; save(); render(); break; }
     case 'cbgo': { const run = cb().run, i = +d.i; if (i >= 0 && i < run.ids.length) { run.i = i; save(); render(); window.scrollTo(0, 0); } break; }
     case 'cbsubmit': cbFinish(); break;
+    case 'cbwrongreset': if (confirm(`${cbSName(cb().setup.sid)}의 '틀렸던 문제' 목록을 초기화할까요? (시험 기록은 그대로예요)`)) { const c = cb(); Object.keys(c.wrong).forEach(k => { const e = cbEx(k); if (!e || exSid(e) === c.setup.sid) delete c.wrong[k]; }); c.setup.wrong = false; save(); render(); toast('초기화했어요'); } break;
     case 'cbdel': if (confirm('이 기록을 삭제할까요? (틀렸던 문제 목록은 유지돼요)')) { cb().log.splice(+d.i, 1); save(); render(); } break;
     case 'cbdelall': if (confirm('시험 기록을 모두 삭제할까요? (틀렸던 문제 목록은 유지돼요)')) { cb().log = []; save(); render(); } break;
     case 'cbretry': { const c = cb(), L = c.log[+d.i]; if (!L) break; const w = L.ids.filter(id => L.ans[id] !== cbAns(cbEx(id))); c.setup.sid = L.sid || 'survey'; c.run = { ids: w, i: 0, ans: {}, peek: {}, t0: Date.now(), done: false, el: 0, years: L.years || [], sid: L.sid || 'survey', wrongOnly: true }; save(); location.hash = '#/exam/run'; break; }
